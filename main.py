@@ -3,9 +3,10 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 from PyPDF2 import PdfReader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_ollama import OllamaEmbeddings, ChatOllama
+from langchain_ollama import ChatOllama
 from langchain_community.vectorstores import FAISS
 from langchain.prompts import ChatPromptTemplate
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain.chains import LLMChain
 
 # -------- Load PDF, split text --------
@@ -32,7 +33,8 @@ text_splitter = RecursiveCharacterTextSplitter(
 docs = text_splitter.create_documents([documents_text])
 
 # -------- Embeddings & vectorstore --------
-embedding_model = OllamaEmbeddings(model="llama3.2")
+embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
+# Tạo mới và lưu
 vectorstore = FAISS.from_documents(docs, embedding_model)
 
 # -------- LLM --------
@@ -42,15 +44,23 @@ retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
 
 # -------- Prompt cho chatbot --------
 prompt = ChatPromptTemplate.from_template("""
-Bạn là một chatbot hỗ trợ khách hàng, thân thiện, nói ngắn gọn và dễ hiểu.
-Chỉ sử dụng dữ liệu dưới đây để trả lời, không tự bịa thông tin.
-Nếu không tìm thấy câu trả lời trong dữ liệu, hãy trả lời chính xác: "Xin lỗi, tôi không có dữ liệu về vấn đề này."
+Bạn là chatbot hỏi đáp về pháp luật Việt Nam. 
+Yêu cầu:
+- Trả lời ngắn gọn, rõ ràng, dễ hiểu.
+- Nếu câu hỏi liên quan đến mức xử phạt, hãy trích chính xác số tiền và hành vi tương ứng.
+- Tuyệt đối chỉ dựa vào dữ liệu trong phần CONTEXT bên dưới.
+- Không được tự suy đoán, không được bịa thông tin.
+- Nếu không có câu trả lời trong dữ liệu, hãy trả lời chính xác: 
+  "Xin lỗi, tôi không có dữ liệu về vấn đề này."
+- Nếu câu hỏi không liên quan đến pháp luật Việt Nam, hãy trả lời: 
+  "Tôi xin lỗi, nhưng câu hỏi của bạn không liên quan đến thông tin về pháp luật Việt Nam. Tôi không thể trả lời câu hỏi này."
 
-Dữ liệu:
+CONTEXT:
 {context}
 
-Câu hỏi: {question}
-Trả lời:
+CÂU HỎI: {question}
+
+TRẢ LỜI:
 """)
 
 qa_chain = LLMChain(llm=llm, prompt=prompt)
