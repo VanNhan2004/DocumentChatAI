@@ -1,82 +1,125 @@
-import os
-os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+import streamlit as st
+from langchain_community.callbacks.streamlit import StreamlitCallbackHandler
+from langchain_community.chat_message_histories import StreamlitChatMessageHistory
 
-from PyPDF2 import PdfReader
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_ollama import ChatOllama
-from langchain_community.vectorstores import FAISS
-from langchain.prompts import ChatPromptTemplate
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain.chains import LLMChain
+from src.loader import load_pdfs
+from src.vectorstore import create_vectorstore, load_vectorstore, get_hybrid_retriever
+from src.prompts import get_chat_prompt
+from src.llm_model import init_llm
+from src.chatbot import ask_question
 
-# -------- Load PDF, split text --------
-def load_pdfs(folder_path):
-    all_text = ""
-    for file in os.listdir(folder_path):
-        if file.endswith(".pdf"):
-            reader = PdfReader(os.path.join(folder_path, file))
-            for page in reader.pages:
-                page_text = page.extract_text()
-                if page_text:
-                    all_text += page_text + "\n"
-    return all_text
+# ---------------- Setup trang ----------------
+def setup_page():
+    st.set_page_config(
+        page_title="ChatBot_NVN",
+        page_icon="💬",
+        layout="wide"
+    )
 
-pdf_folder = "./data"
-documents_text = load_pdfs(pdf_folder)
+def initialize_app():
+    setup_page()
 
-text_splitter = RecursiveCharacterTextSplitter(
-    separators=["\n","\n\n", ".", "?", "!", " "],
-    chunk_size=1000,
-    chunk_overlap=150,
-    length_function=len
-)
-docs = text_splitter.create_documents([documents_text])
+# ---------------- Giao diện Chat ----------------
+def setup_chat_interface(model_name="NVN-ChatBot"):
+    st.title("💬 Chat-NVN")
+    st.caption(f"Trợ lý AI được hỗ trợ bởi {model_name}")
 
-# -------- Embeddings & vectorstore --------
-embedding_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-# Tạo mới và lưu
-vectorstore = FAISS.from_documents(docs, embedding_model)
+    # Khởi tạo lịch sử chat
+    msgs = StreamlitChatMessageHistory(key="langchain_messages")
+    if "messages" not in st.session_state:
+        st.session_state.messages = [
+            {"role": "assistant", "content": "Xin chào! Tôi có thể giúp gì cho bạn hôm nay?", "related_docs": None}
+        ]
+        msgs.add_ai_message("Xin chào! Tôi có thể giúp gì cho bạn hôm nay?")
 
-# -------- LLM --------
-llm = ChatOllama(model="llama3.2")
+    # Hiển thị lịch sử chat
+    for msg in st.session_state.messages:
+        if msg["role"] == "assistant":
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.chat_message("assistant").write(msg["content"])
+                if msg.get("related_docs"):
+                    with st.expander("📚 Thông tin liên quan"):
+                        for i, doc in enumerate(msg["related_docs"], 1):
+                            st.markdown(f"**Đoạn {i}:**")
+                            st.write(doc.page_content.strip())
+                            st.divider()
+        else:
+            col1, col2 = st.columns([1, 3])
+            with col2:
+                st.chat_message("human").write(msg["content"])
 
-retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
+    return msgs
 
-# -------- Prompt cho chatbot --------
-prompt = ChatPromptTemplate.from_template("""
-Bạn là chatbot hỏi đáp về pháp luật Việt Nam. 
-Yêu cầu:
-- Trả lời ngắn gọn, rõ ràng, dễ hiểu.
-- Nếu câu hỏi liên quan đến mức xử phạt, hãy trích chính xác số tiền và hành vi tương ứng.
-- Tuyệt đối chỉ dựa vào dữ liệu trong phần CONTEXT bên dưới.
-- Không được tự suy đoán, không được bịa thông tin.
-- Nếu không có câu trả lời trong dữ liệu, hãy trả lời chính xác: 
-  "Xin lỗi, tôi không có dữ liệu về vấn đề này."
-- Nếu câu hỏi không liên quan đến pháp luật Việt Nam, hãy trả lời: 
-  "Tôi xin lỗi, nhưng câu hỏi của bạn không liên quan đến thông tin về pháp luật Việt Nam. Tôi không thể trả lời câu hỏi này."
+# ---------------- Xử lý tin nhắn người dùng ----------------
+def handle_user_input(msgs, retriever, llm, prompt_template):
+    if user_input := st.chat_input("Hãy nhập câu hỏi của bạn:"):
+        # Hiển thị user message
+        st.session_state.messages.append({"role": "human", "content": user_input, "related_docs": None})
+        col1, col2 = st.columns([1, 3])
+        with col2:
+            st.chat_message("human").write(user_input)
+        msgs.add_user_message(user_input)
 
-CONTEXT:
-{context}
+        # Hiển thị bot đang suy nghĩ
+        with st.spinner("Thinking...."):
+            st_callback = StreamlitCallbackHandler(st.container())
 
-CÂU HỎI: {question}
+            chat_history = [
+                    {"role": msg["role"], "content": msg["content"]}
+                    for msg in st.session_state.messages[:-1]
+                    ]
 
-TRẢ LỜI:
-""")
+            # Lấy dữ liệu liên quan
+            related_docs = retriever.get_relevant_documents(user_input)
 
-qa_chain = LLMChain(llm=llm, prompt=prompt)
+            # Gọi model
+            answer = ask_question(retriever, user_input, llm, prompt_template)
 
-# -------- Hàm hỏi đáp --------
-def ask(question):
-    docs = retriever.invoke(question)
-    context = "\n\n".join([d.page_content for d in docs])
-    result = qa_chain.invoke({"context": context, "question": question})
-    return result["text"]
+        # Hiển thị câu trả lời và thông tin liên quan
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": answer,
+            "related_docs": related_docs
+        })
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            st.chat_message("assistant").write(answer)
+            if related_docs:
+                with st.expander("📚 Thông tin liên quan"):
+                    for i, doc in enumerate(related_docs, 1):
+                        st.markdown(f"**Đoạn {i}:**")
+                        st.write(doc.page_content.strip())
+                        st.divider()
 
-# -------- Chat console --------
-print("Chatbot LLaMA + RAG đã sẵn sàng! Nhập 'exit' để thoát.")
-while True:
-    question = input("Bạn: ")
-    if question.lower() in ["exit", "quit"]:
-        break
-    answer = ask(question)
-    print("Bot:", answer)
+        msgs.add_ai_message(answer)
+
+# ---------------- Main ----------------
+def main():
+    initialize_app()
+
+    # Giao diện chat
+    msgs = setup_chat_interface()
+
+    # Load hoặc tạo vectorstore
+    try:
+        vectorstore = load_vectorstore()
+    except FileNotFoundError:
+        st.info("⚠️ Chưa có vectorstore, đang tạo mới.....")
+        documents = load_pdfs("./data")
+        if not documents:
+            st.warning("📂 Chưa có dữ liệu, vui lòng thêm dữ liệu để ChatBot hoạt động.")
+            return
+        vectorstore = create_vectorstore(documents)
+
+    retriever = get_hybrid_retriever(vectorstore)
+
+    # Khởi tạo LLM và prompt
+    llm = init_llm()
+    prompt_template = get_chat_prompt()
+
+    # Xử lý chat
+    handle_user_input(msgs, retriever, llm, prompt_template)
+
+if __name__ == "__main__":
+    main()
