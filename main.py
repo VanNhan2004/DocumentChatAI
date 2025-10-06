@@ -12,7 +12,6 @@ from src.chatbot import ask_question
 def setup_page():
     st.set_page_config(
         page_title="ChatBot_NVN",
-        page_icon="💬",
         layout="wide"
     )
 
@@ -21,7 +20,7 @@ def initialize_app():
 
 # ---------------- Giao diện Chat ----------------
 def setup_chat_interface(model_name="NVN-ChatBot"):
-    st.title("💬 Chat-NVN")
+    st.title("Chat-NVN")
     st.caption(f"Trợ lý AI được hỗ trợ bởi {model_name}")
 
     # Khởi tạo lịch sử chat
@@ -39,7 +38,7 @@ def setup_chat_interface(model_name="NVN-ChatBot"):
             with col1:
                 st.chat_message("assistant").write(msg["content"])
                 if msg.get("related_docs"):
-                    with st.expander("📚 Thông tin liên quan"):
+                    with st.expander("Thông tin liên quan"):
                         for i, doc in enumerate(msg["related_docs"], 1):
                             st.markdown(f"**Đoạn {i}:**")
                             st.write(doc.page_content.strip())
@@ -86,7 +85,7 @@ def handle_user_input(msgs, retriever, llm, prompt_template):
         with col1:
             st.chat_message("assistant").write(answer)
             if related_docs:
-                with st.expander("📚 Thông tin liên quan"):
+                with st.expander("Thông tin liên quan"):
                     for i, doc in enumerate(related_docs, 1):
                         st.markdown(f"**Đoạn {i}:**")
                         st.write(doc.page_content.strip())
@@ -105,10 +104,10 @@ def main():
     try:
         vectorstore = load_vectorstore()
     except FileNotFoundError:
-        st.info("⚠️ Chưa có vectorstore, đang tạo mới.....")
+        st.info("Chưa có vectorstore, đang tạo mới.....")
         documents = load_pdfs("./data")
         if not documents:
-            st.warning("📂 Chưa có dữ liệu, vui lòng thêm dữ liệu để ChatBot hoạt động.")
+            st.warning("Chưa có dữ liệu, vui lòng thêm dữ liệu để ChatBot hoạt động.")
             return
         vectorstore = create_vectorstore(documents)
 

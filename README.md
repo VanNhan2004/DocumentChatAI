@@ -1,99 +1,131 @@
-# 📘 Chatbot LLaMA + RAG with FAISS
+# 🤖 NVN-ChatBot — Chatbot Hỏi Đáp Dựa Trên Tài Liệu PDF
 
-## 🚀 Introduction  
-This project builds a customer support chatbot using **Retrieval-Augmented Generation (RAG)** combined with **LLaMA (Ollama)** to answer questions based on PDF documents.  
-
-Instead of relying solely on the model's general knowledge, the chatbot searches for relevant information in PDF files (knowledge base) and only uses that data to generate responses. This helps reduce **hallucination** (fabricated answers).  
+Dự án này xây dựng một **chatbot AI** có khả năng **trả lời câu hỏi dựa trên dữ liệu văn bản hoặc tài liệu PDF**, sử dụng **LangChain**, **FAISS**, và **Ollama LLM (Llama3.2)**.  
+Ứng dụng được triển khai với **Streamlit**, giúp bạn có thể trò chuyện trực tiếp qua giao diện web.
 
 ---
 
-## ⚙️ Features  
-- Read and process multiple **PDF** files from the `./data` folder.  
-- Split text into smaller chunks using **RecursiveCharacterTextSplitter** for better embedding.  
-- Create **vector embeddings** from documents with `OllamaEmbeddings`.  
-- Store embeddings in **FAISS vectorstore** for fast retrieval.  
-- Integrate **LLaMA (Ollama)** as the LLM backend.  
-- The chatbot answers **only based on the provided documents**. If no relevant answer is found, it will respond with:  
-  ```
-  Sorry, I don't have data on this topic.
-  ```  
-- Chat directly in the terminal/console.  
+## 🧠 **Chức năng chính**
+- ✅ Đọc và xử lý nhiều tệp **PDF** trong thư mục `data/`.
+- ✅ Tự động chia nhỏ tài liệu thành **đoạn (chunk)** để tối ưu tìm kiếm ngữ nghĩa.
+- ✅ Tạo và lưu trữ **vector database** (FAISS) cho việc truy xuất dữ liệu nhanh.
+- ✅ Tích hợp **retriever kết hợp (FAISS + BM25)** để cải thiện độ chính xác.
+- ✅ Chatbot sử dụng **LLM (Ollama - Llama3.2)** để sinh phản hồi tự nhiên.
+- ✅ Giao diện thân thiện bằng **Streamlit**, hỗ trợ hiển thị đoạn văn bản liên quan.
 
 ---
 
-## 📂 Project Structure  
-
+## 🏗️ **Cấu trúc thư mục**
 ```
-📦 chatbot-rag-llama
- ┣ 📂 data/               # Folder containing PDF files
- ┣ 📜 main.py          # Main chatbot code
- ┣ 📜 README.md           # Project documentation
+📦 NVN-ChatBot
+├── 📂 data/                     # Chứa các file PDF dữ liệu gốc
+│   └── ...
+├── 📂 vector_db/                # Lưu trữ FAISS index (tự động tạo)
+├── 📂 src/
+│   ├── chatbot.py               # Hàm xử lý câu hỏi và phản hồi
+│   ├── llm_model.py             # Khởi tạo mô hình ngôn ngữ (Ollama)
+│   ├── loader.py                # Load và chia nhỏ dữ liệu PDF
+│   ├── prompts.py               # Định nghĩa PromptTemplate cho chatbot
+│   └── vectorstore.py           # Tạo / load / kết hợp retriever (FAISS + BM25)
+├── main.py                      # File chính chạy ứng dụng Streamlit
+├── requirements.txt             # Danh sách thư viện cần cài đặt
+└── README.md                    # Tài liệu hướng dẫn (file này)
 ```
 
 ---
 
-## 🛠 Installation  
+## ⚙️ **Cài đặt môi trường**
 
-### 1. Python and dependencies  
-Install the required libraries:  
-
+### 1️⃣ Clone dự án và vào thư mục:
 ```bash
-pip install PyPDF2 langchain langchain-community langchain-ollama faiss-cpu
+git clone https://github.com/<your_username>/NVN-ChatBot.git
+cd NVN-ChatBot
 ```
 
-### 2. Ollama + LLaMA  
-- Download and install **Ollama**: [https://ollama.ai](https://ollama.ai)  
-- Pull the LLaMA model (e.g., llama3.2):  
-
+### 2️⃣ Tạo môi trường ảo (khuyến nghị):
 ```bash
-ollama pull llama3.2
+python -m venv venv
+source venv/Scripts/activate      # Windows
+# hoặc
+source venv/bin/activate          # macOS/Linux
 ```
 
----
+### 3️⃣ Cài đặt các thư viện cần thiết:
+Tạo file `requirements.txt` với nội dung sau:
+```text
+streamlit
+langchain
+langchain-community
+langchain-huggingface
+faiss-cpu
+PyMuPDF
+sentence-transformers
+ollama
+```
 
-## ▶️ Usage  
-
-1. Place your PDF files into the `./data` folder.  
-2. Run the chatbot:  
-
+Sau đó chạy:
 ```bash
-python chatbot.py
-```
-
-3. The console interface will appear:  
-
-```
-Chatbot LLaMA + RAG is ready! Type 'exit' to quit.
-You:
-```
-
-4. Ask questions, for example:  
-
-```
-You: When was Company X founded?
-Bot: Company X was founded in 2005.
+pip install -r requirements.txt
 ```
 
 ---
 
-## 🔍 Example  
+## 🧩 **Chuẩn bị dữ liệu**
+1. Tạo thư mục `data/` trong dự án.
+2. Đặt các file `.pdf` chứa nội dung luật, tài liệu hoặc văn bản bạn muốn chatbot sử dụng.
+3. Khi chạy lần đầu, chatbot sẽ tự động xử lý PDF và tạo **FAISS index** trong `vector_db/`.
 
-- If data exists in the PDF:  
-  ```
-  You: Who is the director of the company?
-  Bot: The company director is John Doe.
-  ```
+---
 
-- If **no relevant data** exists in the PDF:  
+## 🚀 **Chạy ứng dụng**
+```bash
+streamlit run main.py
+```
+
+- Ứng dụng sẽ mở trên trình duyệt tại địa chỉ:
   ```
-  You: Who is Lionel Messi?
-  Bot: Sorry, I don't have data on this topic.
+  http://localhost:8501
   ```
 
 ---
 
-## 🌱 Future Improvements  
-- Add support for **DOCX, TXT, CSV** files.  
-- Build a **web interface (Streamlit/Gradio)** instead of console-based chat.  
-- Save and display **chat history**.  
-- Optimize **vectorstore** for larger datasets.  
+## 💬 **Cách hoạt động**
+1. Khi bạn nhập câu hỏi, chatbot sẽ:
+   - Lấy các đoạn văn bản liên quan từ FAISS + BM25 retriever.
+   - Đưa các đoạn đó vào prompt.
+   - Gửi prompt đến LLM (Ollama - Llama3.2).
+   - Trả về câu trả lời chính xác và ngắn gọn.
+2. Bạn có thể mở phần **"Thông tin liên quan"** để xem đoạn văn bản gốc.
+
+---
+
+## 🧩 **Chi tiết các module chính**
+
+| File | Chức năng |
+|------|------------|
+| `chatbot.py` | Hàm `ask_question()` xử lý câu hỏi người dùng, kết hợp tài liệu và prompt để tạo phản hồi. |
+| `llm_model.py` | Khởi tạo mô hình Ollama (Llama3.2) và chain QA. |
+| `loader.py` | Tải và chia nhỏ dữ liệu PDF thành các đoạn văn bản có kích thước phù hợp. |
+| `prompts.py` | Prompt template cho chatbot NVN (chống bịa đặt, trả lời tự nhiên). |
+| `vectorstore.py` | Xử lý embedding, tạo FAISS index, và kết hợp retriever FAISS + BM25. |
+| `main.py` | Ứng dụng Streamlit chính: giao diện chat, hiển thị phản hồi và tài liệu liên quan. |
+
+---
+
+## 🧠 **Mô hình sử dụng**
+- **LLM:** Ollama (`llama3.2`)  
+- **Embedding:** Sentence Transformers (`all-MiniLM-L6-v2`)  
+- **Vector Database:** FAISS  
+- **Retriever kết hợp:** FAISS (semantic) + BM25 (lexical)
+
+---
+
+## 📄 **Ghi chú thêm**
+- Nếu chưa cài **Ollama**, tải tại [https://ollama.ai](https://ollama.ai)
+- Chạy mô hình trước khi mở ứng dụng:
+  ```bash
+  ollama run llama3.2
+  ```
+- Khi muốn cập nhật dữ liệu, chỉ cần xóa thư mục `vector_db/` và chạy lại ứng dụng.
+
+---
